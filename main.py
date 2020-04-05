@@ -10,14 +10,14 @@ i2c = I2C(scl=Pin(22), sda=Pin(21), freq=400000)
 display = ssd1306.SSD1306_I2C(128, 64, i2c)
 
 tim = Timer(-1)
-tim2 = Timer(-1)
+tim2 = Timer(0)
 
 runningPump = False
 
-pumpAtLevel = 2000
+pumpAtLevel = 1400
 buttonPump = Pin(5, Pin.IN)
 
-pumpLevelMinus = Pin(32, Pin.IN)
+pumpLevelMinus = Pin(18, Pin.IN)
 pumpLevelPlus = Pin(33, Pin.IN)
 readSensorButton = Pin(25, Pin.IN)
 
@@ -26,17 +26,12 @@ floatSensor = Pin(19, Pin.IN, Pin.PULL_UP)
 waterSensor1 = ADC(Pin(35))
 waterSensor2 = ADC(Pin(34))
 
-pump = Pin(23, Pin.OUT)
+waterSensor1.atten(ADC.ATTN_6DB) 
+waterSensor2.atten(ADC.ATTN_6DB) 
 
-def printScreen(self):
-    global display
-    global waterLevel1
-    global waterLevel2
-    global pumpAtLevel
-    global buttonPump
-    global runningPump
-    global floatSensor
+pump = Pin(23, Pin.OUT, value = 0)
 
+def printScreen():
     display.fill(0)
 
     display.text("Level 1: " + str(waterLevel1), 10, 10)
@@ -51,57 +46,47 @@ def printScreen(self):
 
     display.show()
 
-def runPump(self):
-    global pump
+def runPump():
     global runningPump
-    global floatSensor
 
     if (floatSensor.value() == 1):
         return None
 
-    if (runningPump == False):
+    if (runningPump == True):
         return None
     
     runningPump = True
 
-    printScreen(self)
+    printScreen()
 
-    pump.on()
+    pump.off() # Relay inverted, this turns the relay ON
     time.sleep(2)
-    pump.off()
+    pump.on()
 
     runningPump = False
 
-    printScreen(self)
+    printScreen()
 
-def readSensor(self, shouldPump = True):
+def readSensor(timer, shouldPump = True):
     global pumpAtLevel
     global waterLevel1
     global waterLevel2
-    global waterSensor1
-    global waterSensor2
 
     waterLevel1 = waterSensor1.read()
     waterLevel2 = waterSensor2.read()
 
-    if (shouldPump and ((waterLevel1 < pumpAtLevel) or (waterLevel2 < pumpAtLevel))):
-        runPump(self)
+    if (shouldPump and ((waterLevel1 > pumpAtLevel) or (waterLevel2 > pumpAtLevel))):
+        runPump()
     
-    printScreen(self)
+    printScreen()
 
-def readButtons(self):
-    global buttonPump
-    global pumpLevelMinus
-    global pumpLevelPlus
+def readButtons(timer):
     global pumpAtLevel
-    global pump
-    global readSensorButton
-    global floatSensor
 
     if (floatSensor.value() == 0 and buttonPump.value() == 1):
-        pump.on()
+        pump.off() # Relay inverted, this turns the relay ON
     else:
-        pump.off()
+        pump.on()
 
     if (pumpLevelMinus.value() == 1 and pumpAtLevel >= 20):
         pumpAtLevel = pumpAtLevel - 20
@@ -110,11 +95,11 @@ def readButtons(self):
         pumpAtLevel = pumpAtLevel + 20
 
     if (readSensorButton.value() == 1):
-        readSensor(self, False)
+        readSensor(timer, False)
     
-    printScreen(self)
+    printScreen()
 
-tim.init(period=1000 * 60 * 10, mode=Timer.PERIODIC, callback=readSensor)
+tim.init(period=1000 * 60, mode=Timer.PERIODIC, callback=readSensor)
 tim2.init(period=300, mode=Timer.PERIODIC, callback=readButtons)
 
 readSensor(None)
